@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using System.Text;
 using UnityEditor;
 using UnityEngine;
@@ -10,6 +11,7 @@ public class UnityMenuItem
     public string Path;
     public string Name;
     public int Id;
+    public bool Enabled;
 }
 
 [Serializable]
@@ -30,6 +32,75 @@ public class EnumMenuItem : EditorWindow
     List<UnityMenuItem> allMenuItems = null;
     List<UnityMenuItem> displayMenuItems = new List<UnityMenuItem>();
     string reserveExec = "";
+
+    Dictionary<string, Tuple<Type, MethodInfo, MenuItem>> _menuItems;
+    Dictionary<string, Tuple<Type, MethodInfo, MenuItem>> menuItems
+    {
+        get
+        {
+            if (_menuItems == null)
+            {
+                _menuItems = new Dictionary<string, Tuple<Type, MethodInfo, MenuItem>>();
+
+                var types = AppDomain.CurrentDomain.GetAssemblies()
+                    .SelectMany(asm => asm.GetTypes());
+
+                var l = new List<Tuple<Type, MethodInfo, MenuItem>>();
+                foreach (var type in types)
+                {
+                    l.AddRange(type.GetMethods(BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Static)
+                            .Select(methodInfo => Tuple.Create(type, methodInfo, (methodInfo.GetCustomAttribute(typeof(MenuItem), false) as MenuItem)))
+                            .Where(x => x.Item3 != null && x.Item3.validate)
+                            .ToArray());
+                }
+                _menuItems = l.ToDictionary(x =>
+                {
+                    var index = x.Item3.menuItem.LastIndexOf(' ');
+                    if (index != -1)
+                    {
+                        var a = x.Item3.menuItem.Substring(index, 2);
+                        if (a == @" %" || a == @" &")
+                        {
+                            return x.Item3.menuItem.Substring(0, index);
+                        }
+                    }
+
+                    return x.Item3.menuItem;
+                }, x => x);
+            }
+            return _menuItems;
+        }
+    }
+
+    private bool isReload = false;
+
+    private void OnEnable()
+    {
+        isCompileBegin = false;
+        EditorApplication.update += OnUpdate;
+        if (inputText.Length > 0)
+        {
+            isReload = true;
+        }
+    }
+
+    private void OnDisable()
+    {
+        EditorApplication.update -= OnUpdate;
+        isCompileBegin = false;
+        _menuItems = null;
+    }
+
+    private bool isCompileBegin;
+
+    private void OnUpdate()
+    {
+        var isCompiling = EditorApplication.isCompiling;
+        if (isCompiling && !isCompileBegin)
+        {
+            isCompileBegin = true;
+        }
+    }
 
     /// <summary>
     /// 
@@ -112,8 +183,9 @@ public class EnumMenuItem : EditorWindow
             GUI.SetNextControlName("Finder");
             var after = InputTextField(inputText);
 
-            if (inputText != after)
+            if (inputText != after || isReload)
             {
+                isReload = false;
                 inputText = after;
 
                 displayMenuItems = allMenuItems.Where(x => x.Name.ToLower().IndexOf(after) != -1).ToList();
@@ -130,7 +202,7 @@ public class EnumMenuItem : EditorWindow
             }
 
             // 
-            selectedIndex = ItemListField(selectedIndex, displayMenuItems.ToFormatItems(inputText));
+            selectedIndex = ItemListField(selectedIndex, displayMenuItems.ToFormatItems(menuItems, inputText));
             // 
             PathLabelField(displayMenuItems, selectedIndex);
         }
@@ -228,34 +300,51 @@ public class EnumMenuItem : EditorWindow
 
 public static class MenuItemsExtensions
 {
-    public static string[] ToFormatItems(this List<UnityMenuItem> items, string filter)
+    public static string[] ToFormatItems(this List<UnityMenuItem> items, Dictionary<string, Tuple<Type, MethodInfo, MenuItem>> methods, string filter)
     {
         var b = new StringBuilder();
 
         return items
             .Select(x =>
             {
-                var s = x.Name;
+                var command = x.Name;
+                Tuple<Type, MethodInfo, MenuItem> item;
+
+                if (methods.TryGetValue(x.Path + command, out item))
+                {
+                    x.Enabled = (bool)item.Item2.Invoke(null, null);
+                }
+
                 b.Clear();
+
+                if (!x.Enabled)
+                {
+                    b.Append("<color=grey>");
+                }
 
                 while (true)
                 {
-                    var index = s.IndexOf(filter, StringComparison.CurrentCultureIgnoreCase);
+                    var index = command.IndexOf(filter, StringComparison.CurrentCultureIgnoreCase);
                     if (index == -1)
                     {
-                        if (s.Length > 0)
+                        if (command.Length > 0)
                         {
-                            b.Append(s);
+                            b.Append(command);
                         }
                         break;
                     }
 
-                    b.Append(s.Substring(0, index));
+                    b.Append(command.Substring(0, index));
                     b.Append("<b>");
-                    b.Append(s.Substring(index, filter.Length));
+                    b.Append(command.Substring(index, filter.Length));
                     b.Append("</b>");
 
-                    s = s.Substring(index + filter.Length);
+                    command = command.Substring(index + filter.Length);
+                }
+
+                if (!x.Enabled)
+                {
+                    b.Append("</color>");
                 }
 
                 return b.ToString();

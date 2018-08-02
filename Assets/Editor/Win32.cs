@@ -55,16 +55,27 @@ public static class Win32
     internal const UInt32 MFT_SEPARATOR = 0x00000800;
     internal const UInt32 MFT_STRING = 0x00000000;
 
+    internal const UInt32 MFS_ENABLED = 0x00000000;
+    internal const UInt32 MFS_DISABLED = 0x00000003;
+    internal const UInt32 MFS_GRAYED = 0x00000003;
+    internal const UInt32 MFS_CHECKED = 0x00000008;
+    internal const UInt32 MFS_DEFAULT = 0x00001000;
+    internal const UInt32 MFS_HILITE = 0x00000080;
+    internal const UInt32 MFS_UNHILITE = 0x00000000;
+    internal const UInt32 MFS_UNCHECKED = 0x00000000;
+
     [DllImport("user32.dll")]
     public static extern IntPtr GetMenu(IntPtr hWnd);
     [DllImport("user32.dll")]
     public static extern IntPtr GetSubMenu(IntPtr hMenu, int nPos);
     [DllImport("user32.dll")]
-    public static extern int GetMenuString(IntPtr hMenu, uint uIDItem, StringBuilder lpString, int nMaxCount, uint uFlag);
+    public static extern int GetMenuString(IntPtr hMenu, uint uIDItem, StringBuilder lpString, int nMaxCount, uint uFlags);
     [DllImport("user32.dll")]
     public static extern int GetMenuItemCount(IntPtr hMenu);
     [DllImport("user32.dll")]
     public static extern uint GetMenuItemID(IntPtr hMenu, int nPos);
     [DllImport("user32.dll", CharSet = CharSet.Auto)]
     public static extern bool GetMenuItemInfo(IntPtr hMenu, UInt32 uItem, bool fByPosition, ref MENUITEMINFO lpmii);
+    [DllImport("user32.dll")]
+    public static extern int GetMenuState(IntPtr hMenu, uint uIDItem, uint uFlags);
 }

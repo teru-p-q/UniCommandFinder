@@ -74,7 +74,13 @@ public class AllMenuItem
 
             if ((int)wID > 0)
             {
-                items.Add(new UnityMenuItem { Path = root, Name = menuName.ToString().Split('\t')[0], Id = (int)wID });
+                items.Add(new UnityMenuItem
+                {
+                    Path = root,
+                    Name = menuName.ToString().Split('\t')[0],
+                    Id = (int)wID,
+                    Enabled = true,
+                });
             }
 
             MenuItem(hSubMenu, root + menuName + "/", items);
